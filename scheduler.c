@@ -127,22 +127,110 @@ void policy_LT(int slice)
 {
     printf("Execution trace with LT:\n");
 
-    // Leave this here, it will ensure the scheduling behavior remains deterministic
+    // Ensure deterministic behavior
     srand(42);
 
-    // In the following, you'll need to:
-    // Figure out which active job to run first
-    // Pick the job with the shortest remaining time
-    // Considers jobs in order of arrival, so implicitly breaks ties by choosing the job with the lowest ID
+    // Calculate total tickets
+    struct job *current = head;
+    int total_tickets = 0;
+    while (current != NULL) {
+        total_tickets += current->tickets;
+        current = current->next;
+    }
 
-    // To achieve consistency with the tests, you are encouraged to choose the winning ticket as follows:
-    // int winning_ticket = rand() % total_tickets;
-    // And pick the winning job using the linked list approach discussed in class, or equivalent
+    int t = 0; // Track time
+    while (head != NULL) {  // Loop until all jobs are done
+
+        // Pick a random winning ticket
+        int winning_ticket = rand() % total_tickets;
+        int ticket_counter = 0;
+        current = head;
+        struct job *prev = NULL;
+
+        // Find the job that holds the winning ticket
+        while (current != NULL) {
+            ticket_counter += current->tickets;
+            if (ticket_counter > winning_ticket) {
+                // Execute job for min(slice, remaining time)
+                int run_time = min(slice, current->length);
+                printf("t=%d: [Job %d] won the lottery, running for %d ticks.\n",
+                       t, current->id, run_time);
+                sleep(run_time);  // Simulate execution time
+                t += run_time;
+                current->length -= run_time;
+
+                // If the job is finished, remove it from the list
+                if (current->length == 0) {
+                    printf("t=%d: [Job %d] finished.\n", t, current->id);
+                    total_tickets -= current->tickets;
+
+                    // Remove job from the list
+                    if (prev == NULL) {
+                        head = current->next;
+                    } else {
+                        prev->next = current->next;
+                    }
+                    free(current);
+                }
+                break;  // Exit loop after finding and processing the job
+            }
+            prev = current;
+            current = current->next;
+        }
+    }
 
     printf("End of execution with LT.\n");
-
 }
+void lt_analysis() {
+    struct job *current = head;
+    int t = 0;  // Current time
+    int total_response_time = 0;
+    int total_turnaround_time = 0;
+    int total_wait_time = 0;
 
+    printf("Begin analyzing LT:\n");
+
+    // Traverse through jobs and calculate response time, turnaround time, wait time
+    while (current != NULL) {
+        // Response time: time from job arrival to first execution (in lottery scheduling, this can vary)
+        int response_time = t - current->arrival;
+        if (response_time < 0) {
+            response_time = 0;  // No negative response time
+        }
+
+        // Turnaround time: total time from arrival to completion
+        int turnaround_time = response_time + current->length;
+
+        // Wait time: total waiting time before being executed
+        int wait_time = response_time;
+
+        // Print metrics for each job
+        printf("Job %d -- Response time: %d Turnaround: %d Wait: %d\n", 
+               current->id, response_time, turnaround_time, wait_time);
+
+        // Update totals
+        total_response_time += response_time;
+        total_turnaround_time += turnaround_time;
+        total_wait_time += wait_time;
+
+        // Update time 
+        t += current->length;
+
+        // Move to the next job
+        current = current->next;
+    }
+
+    // Calculate averages
+    int job_count = numofjobs;
+    double avg_response = (double)total_response_time / job_count;
+    double avg_turnaround = (double)total_turnaround_time / job_count;
+    double avg_wait = (double)total_wait_time / job_count;
+
+    printf("Average -- Response: %.2f Turnaround: %.2f Wait: %.2f\n", 
+           avg_response, avg_turnaround, avg_wait);
+
+    printf("End analyzing LT.\n");
+}
 
 void policy_FIFO(){
     printf("Execution trace with FIFO:\n");
@@ -275,7 +363,10 @@ int main(int argc, char **argv){
     }
     else if (strcmp(pname, "LT") == 0)
     {
-        // TODO
+        policy_LT(slice);  // Call Lottery Scheduling policy with time slice
+        if (analysis == 1) {
+            lt_analysis();  // Perform Lottery Scheduling analysis
+        }
     }
 
 	exit(0);
